@@ -32,11 +32,7 @@ const OnSaleOrdinalsArea = ({ className, space, onConnectHandler, onSale }) => {
     const orderSubscriptionRef = useRef(null);
     const [isWindowFocused, setIsWindowFocused] = useState(true);
 
-    const addNewOpenOrder = (order) => {
-        addOpenOrder$.current.next(order);
-    };
-
-    const formatOrder = useCallback((inscription) => {
+    const formatOrder = (inscription) => {
         const inscriptionData = Object.assign(
             {},
             ...inscription.tags
@@ -50,7 +46,11 @@ const OnSaleOrdinalsArea = ({ className, space, onConnectHandler, onSale }) => {
             ...inscription,
         });
         return forSaleInscription;
-    }, []);
+    };
+
+    const addNewOpenOrder = (order) => {
+        addOpenOrder$.current.next(formatOrder(order));
+    };
 
     useEffect(() => {
         if (isWindowFocused) {
@@ -67,9 +67,7 @@ const OnSaleOrdinalsArea = ({ className, space, onConnectHandler, onSale }) => {
                     }, openOrders)
                 )
                 .subscribe(setOpenOrders);
-            orderSubscriptionRef.current = nostrPool.subscribeOrders({ limit: MAX_ONSALE }).subscribe((order) => {
-                addNewOpenOrder(formatOrder(order));
-            });
+            orderSubscriptionRef.current = nostrPool.subscribeOrders({ limit: MAX_ONSALE }).subscribe(addNewOpenOrder);
         }
         return () => {
             try {
@@ -82,25 +80,11 @@ const OnSaleOrdinalsArea = ({ className, space, onConnectHandler, onSale }) => {
     }, [isWindowFocused]);
 
     useEffect(() => {
-        const handleWindowBlur = () => {
-            setIsWindowFocused(false);
-        };
-
-        const handleWindowFocus = () => {
-            setIsWindowFocused(true);
-        };
-
         const handleVisibilityChange = () => {
             setIsWindowFocused(!document.hidden);
         };
-
-        window.addEventListener("blur", handleWindowBlur);
-        window.addEventListener("focus", handleWindowFocus);
         document.addEventListener("visibilitychange", handleVisibilityChange);
-
         return () => {
-            window.removeEventListener("blur", handleWindowBlur);
-            window.removeEventListener("focus", handleWindowFocus);
             document.removeEventListener("visibilitychange", handleVisibilityChange);
         };
     }, []);

@@ -22,6 +22,7 @@
         "lodash.differenceby": "^4.8.0",
         "lodash.isequal": "^4.5.0",
         "lodash.uniqby": "^4.7.0",
+        "lottie-react": "^2.4.0",
         "mdb-react-ui-kit": "^5.1.0",
         "netlify-plugin-ipx": "0.0.1",
         "next": "^13.2.4",

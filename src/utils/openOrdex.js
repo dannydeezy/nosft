@@ -2,7 +2,7 @@
 // we should try to keep it as close to the original as possible, even though, ideally,
 // we would use the original package if we can make it a library.
 /* eslint-disable */
-import { TESTNET, NOSTR_RELAY_URL, NOSTR_KIND_INSCRIPTION } from "@lib/constants.config";
+import { IS_PRODUCTION, NOSTR_RELAY_URL, NOSTR_KIND_INSCRIPTION, MEMPOOL_BASE_URL } from "@lib/constants.config";
 import { getAddressInfo, toXOnly } from "@utils/crypto";
 import { getAddressUtxos } from "@utils/utxos";
 import { relayInit, getEventHash } from "nostr-tools";
@@ -13,16 +13,13 @@ import { Observable } from "rxjs";
 
 bitcoin.initEccLib(ecc);
 
-// TODO: Move to constants
-const isProduction = !TESTNET;
-const baseMempoolUrl = isProduction ? "https://mempool.space" : "https://mempool.space/signet";
-const baseMempoolApiUrl = `${baseMempoolUrl}/api`;
+const baseMempoolApiUrl = `${MEMPOOL_BASE_URL}/api`;
 const bitcoinPriceApiUrl = "https://blockchain.info/ticker?cors=true";
 const feeLevel = "hourFee"; // "fastestFee" || "halfHourFee" || "hourFee" || "economyFee" || "minimumFee"
-const ordinalsExplorerUrl = isProduction ? "https://ordinals.com" : "https://explorer-signet.openordex.org";
+const ordinalsExplorerUrl = IS_PRODUCTION ? "https://ordinals.com" : "https://explorer-signet.openordex.org";
 
-const network = isProduction ? bitcoin.networks.bitcoin : bitcoin.networks.testnet;
-const networkName = isProduction ? "mainnet" : "signet";
+const network = IS_PRODUCTION ? bitcoin.networks.bitcoin : bitcoin.networks.testnet;
+const networkName = IS_PRODUCTION ? "mainnet" : "signet";
 const exchangeName = "nosft";
 const dummyUtxoValue = 1_000;
 const numberOfDummyUtxosToCreate = 1;
@@ -451,7 +448,7 @@ class OpenOrdexFactory {
         const hex = tx.toBuffer().toString("hex");
         const fullTx = bitcoin.Transaction.fromHex(hex);
 
-        await axios.post(`https://mempool.space/api/tx`, hex);
+        await axios.post(`${MEMPOOL_BASE_URL}/api/tx`, hex);
 
         return fullTx.getId();
     }

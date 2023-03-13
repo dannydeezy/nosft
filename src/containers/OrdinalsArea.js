@@ -55,7 +55,10 @@ const OrdinalsArea = ({ className, space }) => {
     const [refreshHack, setRefreshHack] = useState(false);
 
     const handleRefreshHack = () => {
-        setRefreshHack(!refreshHack);
+        setTimeout(() => {
+            // TODO: this hack unmounts the sending modal so we should improve it
+            setRefreshHack(!refreshHack);
+        }, 10000);
     };
 
     useEffect(() => {
