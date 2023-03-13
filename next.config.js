@@ -16,6 +16,7 @@ module.exports = withBundleAnalyzer({
             "d2v3k2do8kym1f.cloudfront.net",
             "https://ordinals.com",
             "https://explorer-signet.openordex.org",
+            "https://i.imgur.com",
         ],
         unoptimized: true,
     },

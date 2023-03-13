@@ -1,6 +1,6 @@
 /* eslint-disable react/forbid-prop-types */
 import PropTypes from "prop-types";
-import { useState, useContext, useEffect } from "react";
+import { useState, useContext } from "react";
 import SendModal from "@components/modals/send-modal";
 import SellModal from "@components/modals/sell-modal";
 import BuyModal from "@components/modals/buy-modal";

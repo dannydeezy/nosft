@@ -7,7 +7,7 @@ import clsx from "clsx";
 import Anchor from "@ui/anchor";
 import ClientAvatar from "@ui/client-avatar";
 import ProductBid from "@components/product-bid";
-import { ORDINALS_EXPLORER_URL } from "@lib/constants";
+import { ORDINALS_EXPLORER_URL } from "@lib/constants.config";
 import WalletContext from "@context/wallet-context";
 import { ImageType } from "@utils/types";
 import { shortenStr, cloudfrontUrl } from "@utils/crypto";

@@ -6,7 +6,7 @@ import Button from "@ui/button";
 import { validate, Network } from "bitcoin-address-validation";
 import InputGroup from "react-bootstrap/InputGroup";
 import Form from "react-bootstrap/Form";
-import { TESTNET, DEFAULT_FEE_RATE, ORDINALS_EXPLORER_URL } from "@lib/constants";
+import { TESTNET, DEFAULT_FEE_RATE, ORDINALS_EXPLORER_URL } from "@lib/constants.config";
 import { shortenStr, outputValue, getAddressInfo } from "@utils/crypto";
 import SessionStorage, { SessionsStorageKeys } from "@services/session-storage";
 import { serializeTaprootSignature } from "bitcoinjs-lib/src/psbt/bip371";

@@ -1,6 +1,6 @@
 import * as bitcoin from "bitcoinjs-lib";
 import * as ecc from "tiny-secp256k1";
-import { TESTNET, ASSUMED_TX_BYTES } from "@lib/constants";
+import { TESTNET, ASSUMED_TX_BYTES } from "@lib/constants.config";
 import SessionStorage, { SessionsStorageKeys } from "@services/session-storage";
 
 bitcoin.initEccLib(ecc);

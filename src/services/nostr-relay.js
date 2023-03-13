@@ -1,57 +1,83 @@
 import { SimplePool, getEventHash } from "nostr-tools";
-import { RELAYS } from "@lib/constants";
+import { NOSTR_KIND_INSCRIPTION, RELAYS } from "@lib/constants.config";
 import { cleanEvent } from "@utils/nostr/event";
+import { Observable } from "rxjs";
+import { OpenOrdex } from "@utils/openOrdex";
 
-export const RELAY_KINDS = {
-    INSCRIPTION: 802,
-};
+class NostrRelay {
+    constructor() {
+        this.pool = new SimplePool();
+        this.subs = [];
+        this.relays = [...RELAYS];
+        this.subscriptionOrders = null;
+        this.events = [];
+    }
 
-const NostrRelay = function () {
-    this.pool = new SimplePool();
-    this.subs = [];
-    this.relays = [...RELAYS];
+    unsubscribeOrders() {
+        if (this.subscriptionOrders) {
+            this.subs = this.subs.filter((sub) => sub !== this.subscriptionOrders);
+            this.subscriptionOrders.unsub();
+            this.subscriptionOrders = null;
+        }
+    }
 
-    this.subscribe = async (filter, onEvent, onEose) => {
+    subscribeOrders({ limit }) {
+        return new Observable(async (observer) => {
+            try {
+                this.unsubscribeOrders();
+                this.subscriptionOrders = this.subscribe(
+                    [{ kinds: [NOSTR_KIND_INSCRIPTION], limit }],
+                    async (event) => {
+                        const order = await OpenOrdex.getProcessedOrder(event);
+                        if (order) observer.next(order);
+                    },
+                    () => {
+                        console.log(`eose`);
+                    }
+                );
+            } catch (error) {
+                observer.error(error);
+            }
+        });
+    }
+
+    subscribe(filter, onEvent, onEose) {
         const sub = this.pool.sub([...this.relays], filter);
-
         sub.on("event", onEvent);
-
         sub.on("eose", onEose);
-
         this.subs.push(sub);
         return sub;
-    };
+    }
 
-    this.unsubscribeAll = () => {
+    unsubscribeAll() {
         this.subs.forEach((sub) => {
             sub.unsub();
         });
-    };
+    }
 
-    this.publish = async (_event, onSuccess, onError) => {
+    publish(_event, onSuccess, onError) {
         const event = cleanEvent(_event);
-
-        const pubs = await this.pool.publish(this.relays, event);
-        pubs.forEach((pub) => {
-            pub.on("ok", () => {
-                console.log(`Accepted our event`);
-                if (onSuccess) onSuccess();
-            });
-            pub.on("failed", (reason) => {
-                console.log(`failed to publish ${reason}`);
-                if (onError) onError(reason);
-            });
+        const pub = this.pool.publish(this.relays, event);
+        pub.on("ok", () => {
+            if (onSuccess) onSuccess();
         });
-    };
-    this.sign = async (event) => {
+        pub.on("failed", (reason) => {
+            console.error(`failed to publish ${reason}`);
+            if (onError) onError(reason);
+        });
+    }
+
+    // eslint-disable-next-line class-methods-use-this
+    async sign(event) {
+        const eventBase = { ...event, created_at: Math.floor(Date.now() / 1000) };
         const newEvent = {
-            ...event,
-            created_at: Math.floor(Date.now() / 1000),
-            id: getEventHash(event),
+            ...eventBase,
+            id: getEventHash(eventBase),
         };
-
         return window.nostr.signEvent(newEvent);
-    };
-};
+    }
+}
 
-export default new NostrRelay();
+const nostrPool = new NostrRelay();
+
+export { nostrPool };

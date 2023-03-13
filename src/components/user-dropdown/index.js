@@ -4,7 +4,7 @@ import Anchor from "@ui/anchor";
 import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
-const UserDropdown = ({ onDisconnect, pubKey, receiveAddress }) => (
+const UserDropdown = ({ onDisconnect, receiveAddress }) => (
     <div className="icon-box">
         <Anchor path="#">
             <Image src="/images/logo/nos-ft-logo.png" alt="Images" width={38} height={38} />
@@ -80,7 +80,6 @@ const UserDropdown = ({ onDisconnect, pubKey, receiveAddress }) => (
 
 UserDropdown.propTypes = {
     onDisconnect: PropTypes.func.isRequired,
-    pubKey: PropTypes.string,
     receiveAddress: PropTypes.string,
 };
 

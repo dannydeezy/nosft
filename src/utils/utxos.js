@@ -1,4 +1,4 @@
-import { TESTNET } from "@lib/constants";
+import { TESTNET } from "@lib/constants.config";
 
 const axios = require("axios");
 
@@ -33,7 +33,6 @@ export const getAddressUtxos = async (address) => {
                 // eslint-disable-next-line no-await-in-loop
                 resp = await axios.get(url);
             } catch (e) {
-                console.log(`Error`);
                 console.error(e);
                 // eslint-disable-next-line no-await-in-loop
                 await delay(5000);

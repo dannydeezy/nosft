@@ -1,31 +1,36 @@
+// This file is an adaption of the original https://github.com/orenyomtov/openordex
+// we should try to keep it as close to the original as possible, even though, ideally,
+// we would use the original package if we can make it a library.
 /* eslint-disable */
-import { TESTNET } from "@lib/constants";
+import { TESTNET, NOSTR_RELAY_URL, NOSTR_KIND_INSCRIPTION } from "@lib/constants.config";
 import { getAddressInfo, toXOnly } from "@utils/crypto";
 import { getAddressUtxos } from "@utils/utxos";
 import { relayInit, getEventHash } from "nostr-tools";
 import { serializeTaprootSignature } from "bitcoinjs-lib/src/psbt/bip371";
 import * as bitcoin from "bitcoinjs-lib";
 import * as ecc from "tiny-secp256k1";
+import { Observable } from "rxjs";
 
 bitcoin.initEccLib(ecc);
 
 // TODO: Move to constants
 const isProduction = !TESTNET;
-// const nostrRelayUrl = "wss://nostr.openordex.org"; // Use local relay for testing
-const nostrRelayUrl = "ws://localhost:7001"; // Use local relay for testing
 const baseMempoolUrl = isProduction ? "https://mempool.space" : "https://mempool.space/signet";
 const baseMempoolApiUrl = `${baseMempoolUrl}/api`;
 const bitcoinPriceApiUrl = "https://blockchain.info/ticker?cors=true";
 const feeLevel = "hourFee"; // "fastestFee" || "halfHourFee" || "hourFee" || "economyFee" || "minimumFee"
 const ordinalsExplorerUrl = isProduction ? "https://ordinals.com" : "https://explorer-signet.openordex.org";
-const nostrOrderEventKind = 802;
+
 const network = isProduction ? bitcoin.networks.bitcoin : bitcoin.networks.testnet;
 const networkName = isProduction ? "mainnet" : "signet";
 const exchangeName = "nosft";
 const dummyUtxoValue = 1_000;
 const numberOfDummyUtxosToCreate = 1;
+const isBrowser = typeof window !== "undefined";
 
-let recommendedFeeRate;
+const recommendedFeeRate = fetch(`${baseMempoolApiUrl}/v1/fees/recommended`)
+    .then((response) => response.json())
+    .then((data) => data[feeLevel]);
 
 async function doesUtxoContainInscription(utxo) {
     const html = await fetch(`${ordinalsExplorerUrl}/output/${utxo.txid}:${utxo.vout}`).then((response) =>
@@ -43,11 +48,11 @@ function satsToFormattedDollarString(sats, _bitcoinPrice) {
 }
 
 function btcToSat(btc) {
-    return Math.floor(Number(btc) * Math.pow(10, 8));
+    return Math.floor(Number(btc) * 10 ** 8);
 }
 
 function satToBtc(sat) {
-    return Number(sat) / Math.pow(10, 8);
+    return Number(sat) / 10 ** 8;
 }
 
 async function selectUtxos(utxos, amount, vins, vouts, recommendedFeeRate) {
@@ -93,37 +98,49 @@ function calculateFee(vins, vouts, recommendedFeeRate, includeChangeOutput = tru
     return fee;
 }
 
-const OpenOrdex = function () {
-    this.bitcoinPrice = undefined;
-    this.recommendedFeeRate = undefined;
+class OpenOrdexFactory {
+    constructor() {
+        this.connected = false;
+        this.bitcoinPrice = undefined;
+        this.recommendedFeeRate = undefined;
+        this.nostrRelay = relayInit(NOSTR_RELAY_URL);
+        this.connect();
+        this.orders = {};
+        this.txHexByIdCache = {};
 
-    this.nostrRelay = relayInit(nostrRelayUrl);
-    this.orders = {};
-    this.txHexByIdCache = {};
+        // TODO: This shouldnt be happening...
+        this.sellerSignedPsbt = undefined;
+        this.price = undefined;
 
-    // TODO: This shouldnt be happening...
-    this.sellerSignedPsbt = undefined;
-    this.price = undefined;
+        this.paymentUtxos = undefined;
+        this.dummyUtxo = undefined;
+    }
 
-    this.paymentUtxos = undefined;
-    this.dummyUtxo = undefined;
+    async connect() {
+        if (this.connected || !isBrowser) return;
+        this.nostrRelay
+            .connect()
+            .then(() => {
+                this.connected = true;
+            })
+            .catch((error) => {
+                this.connected = false;
+                console.error("error to nostr relay", error);
+            });
+    }
 
-    // Methods
-    this.init = async () => {
+    async init() {
+        await this.connect();
         this.bitcoinPrice = fetch(bitcoinPriceApiUrl)
             .then((response) => response.json())
             .then((data) => data.USD.last);
-
-        this.nostrRelay = relayInit(nostrRelayUrl);
-
         this.recommendedFeeRate = fetch(`${baseMempoolApiUrl}/v1/fees/recommended`)
             .then((response) => response.json())
             .then((data) => data[feeLevel]);
-
         return this;
-    };
+    }
 
-    this.validateSellerPSBTAndExtractPrice = function (sellerSignedPsbtBase64, utxo) {
+    validateSellerPSBTAndExtractPrice(sellerSignedPsbtBase64, utxo) {
         try {
             this.sellerSignedPsbt = bitcoin.Psbt.fromBase64(sellerSignedPsbtBase64, {
                 network,
@@ -145,7 +162,7 @@ const OpenOrdex = function () {
                 if (e.message == "Not finalized") {
                     throw "PSBT not signed";
                 } else if (e.message != "Outputs are spending more than Inputs") {
-                    throw "Invalid PSBT " + e.message || e;
+                    throw `Invalid PSBT ${e.message}` || e;
                 }
             }
 
@@ -156,90 +173,72 @@ const OpenOrdex = function () {
         } catch (e) {
             console.error(e);
         }
-    };
+    }
 
-    this.getLatestOrders = async (limit, nostrLimit = 20) => {
-        await this.nostrRelay.connect();
-        const latestOrders = [];
+    isSaleOrder(order) {
+        return order.tags.find((x) => x?.[0] == "s")?.[1];
+    }
 
-        const orders = await this.nostrRelay.list([
-            {
-                kinds: [nostrOrderEventKind],
-                limit: nostrLimit,
-            },
-        ]);
+    getInscriptionId(order) {
+        return order.tags.find((x) => x?.[0] == "i")[1];
+    }
 
-        for (const order of orders) {
+    isProcessed(orders, inscriptionId) {
+        return orders.find((x) => x.inscriptionId == inscriptionId);
+    }
+
+    async getProcessedOrder(order, orders = []) {
+        if (!this.isSaleOrder(order)) return;
+        const inscriptionId = this.getInscriptionId(order);
+        if (this.isProcessed(orders, inscriptionId)) return;
+
+        const inscriptionData = await this.getInscriptionDataById(inscriptionId);
+        const validatedPrice = this.validateSellerPSBTAndExtractPrice(order.content, inscriptionData.output);
+        if (!validatedPrice) return;
+
+        const newOrder = {
+            title: `$${satsToFormattedDollarString(validatedPrice, await this.bitcoinPrice)}`,
+            txid: order.id,
+            inscriptionId,
+            value: validatedPrice,
+            usdPrice: `$${satsToFormattedDollarString(validatedPrice, await this.bitcoinPrice)}`,
+            ...order,
+        };
+
+        return newOrder;
+    }
+
+    latestOrders({ limit }) {
+        return new Observable(async (observer) => {
             try {
-                if (!order.tags.find((x) => x?.[0] == "s")?.[1]) {
-                    continue;
+                const latestOrders = [];
+                const orders = await this.nostrRelay.list([
+                    {
+                        kinds: [NOSTR_KIND_INSCRIPTION],
+                        limit: limit,
+                    },
+                ]);
+
+                for (const order of orders) {
+                    try {
+                        const newOrder = await this.getProcessedOrder(order, latestOrders);
+                        if (!newOrder) continue;
+                        observer.next(newOrder);
+                        latestOrders.push(newOrder);
+                        if (latestOrders.length >= limit) {
+                            break;
+                        }
+                    } catch (e) {
+                        console.error(e);
+                    }
                 }
-                const inscriptionId = order.tags.find((x) => x?.[0] == "i")[1];
-                if (latestOrders.find((x) => x.inscriptionId == inscriptionId)) {
-                    continue;
-                }
-
-                const inscriptionData = await this.getInscriptionDataById(inscriptionId);
-
-                const validatedPrice = this.validateSellerPSBTAndExtractPrice(order.content, inscriptionData.output);
-                if (!validatedPrice) {
-                    continue;
-                }
-
-                // let inscriptionTags = order.tags
-                //     // .filter(([t, v]) => t === "i" && v)
-                //     .map(([tagId, inscriptionId, signedPsbt]) => ({
-                //         [tagId]: {
-                //             inscriptionId,
-                //             signedPsbt,
-                //         },
-                //     }));
-                // // Convert array into object of key tagId
-                // inscriptionTags = Object.assign(
-                //     {},
-                //     ...inscriptionTags.map((o) => o)
-                // );
-
-                latestOrders.push({
-                    // title: `${satToBtc(
-                    //     validatedPrice
-                    // )} BTC ($${satsToFormattedDollarString(
-                    //     validatedPrice,
-                    //     await this.bitcoinPrice
-                    // )})`,
-                    title: `$${satsToFormattedDollarString(validatedPrice, await this.bitcoinPrice)}`,
-                    txid: order.id,
-                    inscriptionId,
-                    value: validatedPrice,
-                    usdPrice: `$${satsToFormattedDollarString(validatedPrice, await this.bitcoinPrice)}`,
-                    ...order,
-                    // tagsData: inscriptionTags,
-                });
-
-                if (latestOrders.length >= limit) {
-                    break;
-                }
-            } catch (e) {
-                console.error(e);
+            } catch (error) {
+                observer.error(error);
             }
-        }
+        });
+    }
 
-        return latestOrders;
-    };
-
-    this.loadLatestOrders = async (limit = 8, nostrLimit = 25) => {
-        try {
-            this.orders = await this.getLatestOrders(limit, nostrLimit);
-            return this.orders;
-        } catch (e) {
-            console.error(e);
-            console.error(`Error fetching orders:\n` + e.message);
-        }
-
-        return [];
-    };
-
-    this.getTxHexById = async function (txId) {
+    async getTxHexById(txId) {
         if (!this.txHexByIdCache[txId]) {
             this.txHexByIdCache[txId] = await fetch(`${baseMempoolApiUrl}/tx/${txId}/hex`).then((response) =>
                 response.text()
@@ -247,9 +246,9 @@ const OpenOrdex = function () {
         }
 
         return this.txHexByIdCache[txId];
-    };
+    }
 
-    this.getInscriptionDataById = async function (inscriptionId, verifyIsInscriptionNumber) {
+    async getInscriptionDataById(inscriptionId, verifyIsInscriptionNumber) {
         const html = await fetch(`${ordinalsExplorerUrl}/inscription/${inscriptionId}`).then((response) =>
             response.text()
         );
@@ -274,11 +273,11 @@ const OpenOrdex = function () {
         }
 
         return data;
-    };
+    }
 
     // Sell
-    this.generatePSBTListingInscriptionForSale = async function (ordinalOutput, price, paymentAddress) {
-        let psbt = new bitcoin.Psbt({ network });
+    async generatePSBTListingInscriptionForSale(ordinalOutput, price, paymentAddress) {
+        const psbt = new bitcoin.Psbt({ network });
 
         const pk = await window.nostr.getPublicKey();
         const publicKey = Buffer.from(pk, "hex");
@@ -327,14 +326,13 @@ const OpenOrdex = function () {
 
         psbt.finalizeAllInputs();
         return psbt.toBase64();
-    };
+    }
 
-    this.publishSellerPsbt = async function (signedSalePsbt, inscriptionId, inscriptionUtxo, priceInSats) {
-        await this.nostrRelay.connect();
+    async publishSellerPsbt(signedSalePsbt, inscriptionId, inscriptionUtxo, priceInSats) {
         const pk = await window.nostr.getPublicKey();
 
-        let event = {
-            kind: nostrOrderEventKind,
+        const event = {
+            kind: NOSTR_KIND_INSCRIPTION,
             pubkey: pk,
             created_at: Math.floor(Date.now() / 1000),
             tags: [
@@ -351,9 +349,9 @@ const OpenOrdex = function () {
         const signedEvent = await window.nostr.signEvent(event);
 
         await this.nostrRelay.publish(signedEvent);
-    };
+    }
 
-    this.submitSignedSalePsbt = async (inscription, price, signedSalePsbt) => {
+    async submitSignedSalePsbt(inscription, price, signedSalePsbt) {
         try {
             bitcoin.Psbt.fromBase64(signedSalePsbt, {
                 network,
@@ -361,7 +359,8 @@ const OpenOrdex = function () {
         } catch (e) {
             if (e.message == "Not finalized") {
                 return alert("Please sign and finalize the PSBT before submitting it");
-            } else if (e.message != "Outputs are spending more than Inputs") {
+            }
+            if (e.message != "Outputs are spending more than Inputs") {
                 console.error(e);
                 return alert("Invalid PSBT", e.message || e);
             }
@@ -378,14 +377,14 @@ const OpenOrdex = function () {
             console.error(e);
             alert("Error publishing seller PSBT", e.message || e);
         }
-    };
+    }
 
     // Buy
-    this.createDummuyUtxo = async (payerAddress) => {
+    async createDummuyUtxo(payerAddress) {
         return this.generatePSBTGeneratingDummyUtxos(payerAddress, 1, this.paymentUtxos);
-    };
+    }
 
-    this.generatePSBTGeneratingDummyUtxos = async (payerAddress) => {
+    async generatePSBTGeneratingDummyUtxos(payerAddress) {
         const psbt = new bitcoin.Psbt({ network });
 
         const publicKey = Buffer.from(await window.nostr.getPublicKey(), "hex");
@@ -448,17 +447,16 @@ const OpenOrdex = function () {
 
         psbt.finalizeAllInputs();
 
-        debugger;
         const tx = psbt.extractTransaction();
         const hex = tx.toBuffer().toString("hex");
         const fullTx = bitcoin.Transaction.fromHex(hex);
-        console.log(hex);
+
         await axios.post(`https://mempool.space/api/tx`, hex);
 
         return fullTx.getId();
-    };
+    }
 
-    this.updatePayerAddress = async (payerAddress) => {
+    async updatePayerAddress(payerAddress) {
         window.localStorage.setItem("payerAddress", payerAddress); // TODO: Use service
 
         try {
@@ -470,7 +468,6 @@ const OpenOrdex = function () {
         const potentialDummyUtxos = this.payerUtxos.filter((utxo) => utxo.value <= dummyUtxoValue);
         this.dummyUtxo = undefined;
 
-        debugger;
         for (const potentialDummyUtxo of potentialDummyUtxos) {
             if (!(await doesUtxoContainInscription(potentialDummyUtxo))) {
                 // hideDummyUtxoElements();
@@ -507,10 +504,9 @@ const OpenOrdex = function () {
             this.paymentUtxos = undefined;
             throw e;
         }
-    };
+    }
 
-    this.generatePSBTBuyingInscription = async (payerAddress, receiverAddress, price) => {
-        debugger;
+    async generatePSBTBuyingInscription(payerAddress, receiverAddress, price) {
         const psbt = new bitcoin.Psbt({ network });
         let totalValue = 0;
         let totalPaymentValue = 0;
@@ -591,7 +587,9 @@ Missing:     ${satToBtc(-changeValue)} BTC`;
         });
 
         return psbt.toBase64();
-    };
-};
+    }
+}
 
-export default new OpenOrdex();
+const OpenOrdex = new OpenOrdexFactory();
+
+export { OpenOrdex };

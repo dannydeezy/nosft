@@ -3,15 +3,14 @@ import { useState, useContext, useEffect } from "react";
 import PropTypes from "prop-types";
 import Modal from "react-bootstrap/Modal";
 import Button from "@ui/button";
-import { validate, Network } from "bitcoin-address-validation";
 import InputGroup from "react-bootstrap/InputGroup";
 import Form from "react-bootstrap/Form";
-import { TESTNET, ORDINALS_EXPLORER_URL } from "@lib/constants";
+import { ORDINALS_EXPLORER_URL } from "@lib/constants.config";
 import { shortenStr } from "@utils/crypto";
 import * as bitcoin from "bitcoinjs-lib";
 import * as ecc from "tiny-secp256k1";
 import WalletContext from "@context/wallet-context";
-import OpenOrdex from "@utils/openOrdexV3";
+import { OpenOrdex } from "@utils/openOrdex";
 import { TailSpin } from "react-loading-icons";
 
 // import {
@@ -92,7 +91,7 @@ const BuyModal = ({ show, handleModal, utxo }) => {
     useEffect(() => {
         setDestinationBtcAddress(nostrAddress);
         const updateAddress = async () => {
-            openOrderx = await OpenOrdex.init();
+            await OpenOrdex.init();
             // await updatePayerAddress(nostrAddress);
         };
 

@@ -1,6 +1,6 @@
 /* eslint-disable no-restricted-syntax, no-await-in-loop, no-continue */
 
-import React, { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import Wrapper from "@layout/wrapper";
 import Header from "@layout/header";
 import Footer from "@layout/footer";
@@ -12,6 +12,7 @@ import { getAddressInfo } from "@utils/crypto";
 import homepageData from "@data/general/home.json";
 import { useConnectWallet } from "@hooks";
 import WalletContext from "@context/wallet-context";
+import OnSaleOrdinalsArea from "@containers/OnSaleOrdinalsArea";
 
 export async function getStaticProps() {
     return { props: { className: "template-color-1" } };
@@ -53,6 +54,8 @@ const App = () => {
         [nostrPublicKey, nostrAddress, isExperimental]
     );
 
+    const [refreshHack, setRefreshHack] = useState(false);
+
     return (
         <WalletContext.Provider value={obj}>
             <Wrapper>
@@ -69,7 +72,7 @@ const App = () => {
 
                     {nostrPublicKey && nostrAddress && <OrdinalsArea />}
 
-                    {/* <OnSaleOrdinalsArea onConnectHandler={onConnectHandler} onSale={setRefreshHack} /> */}
+                    <OnSaleOrdinalsArea onConnectHandler={onConnectHandler} onSale={setRefreshHack} />
                 </main>
 
                 <Footer />

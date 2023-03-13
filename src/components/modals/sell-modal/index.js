@@ -6,15 +6,16 @@ import Button from "@ui/button";
 import { validate, Network } from "bitcoin-address-validation";
 import InputGroup from "react-bootstrap/InputGroup";
 import Form from "react-bootstrap/Form";
-import { TESTNET, ORDINALS_EXPLORER_URL } from "@lib/constants";
+import { TESTNET, ORDINALS_EXPLORER_URL, NOSTR_SELL_KIND_INSCRIPTION } from "@lib/constants.config";
 import { shortenStr, fetchBitcoinPrice, satsToFormattedDollarString } from "@utils/crypto";
 import * as bitcoin from "bitcoinjs-lib";
 import * as ecc from "tiny-secp256k1";
 import WalletContext from "@context/wallet-context";
-import OpenOrdex from "@utils/openOrdexV3";
+import { OpenOrdex } from "@utils/openOrdex";
 import { toast } from "react-toastify";
 import { TailSpin } from "react-loading-icons";
 import { IframeWithLoader } from "@components/iframe";
+import { nostrPool } from "@services/nostr-relay";
 
 bitcoin.initEccLib(ecc);
 
@@ -42,11 +43,11 @@ const SendModal = ({ show, handleModal, utxo }) => {
     const sale = async () => {
         setIsOnSale(true);
         if (!openOrderx) {
-            console.log("init");
             openOrderx = await OpenOrdex.init();
         }
 
         const inscription = await openOrderx.getInscriptionDataById(utxo.inscriptionId);
+        const { inscriptionId } = utxo;
         const signedPsbt = await openOrderx.generatePSBTListingInscriptionForSale(
             inscription.output,
             ordinalValue,
@@ -59,15 +60,15 @@ const SendModal = ({ show, handleModal, utxo }) => {
         } catch (e) {
             toast.error(e.message);
         }
-        // TODO: Notify nostr that ordinal is available
-        // const event = {
-        //     pubkey: nostrPublicKey,
-        //     kind: RELAY_KINDS.INSCRIPTION,
-        //     tags: [["i", inscriptionId, signedContent]],
-        //     content: `sell ${inscriptionId}`,
-        // };
-        // const signedEvent = await nostrRelay.sign(event);
-        // await nostrRelay.publish(signedEvent, console.info, console.error);
+        const event = {
+            pubkey: nostrPublicKey,
+            kind: NOSTR_SELL_KIND_INSCRIPTION,
+            tags: [["i", inscriptionId, signedPsbt]], // TODO: what is signedContent?
+            content: `sell ${inscriptionId}`,
+        };
+        const signedEvent = await nostrPool.sign(event);
+        nostrPool.publish(signedEvent, console.info, console.error); // TODO: it is falling
+
         setIsOnSale(false);
         handleModal();
     };

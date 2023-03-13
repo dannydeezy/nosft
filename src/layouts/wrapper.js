@@ -1,4 +1,3 @@
-import React from "react";
 import ScrollToTop from "@ui/scroll-to-top";
 import PropTypes from "prop-types";
 import { ToastContainer } from "react-toastify";
