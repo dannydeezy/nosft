@@ -39,6 +39,7 @@
         "react-social-icons": "^5.15.0",
         "react-toastify": "^9.1.1",
         "react-useinterval": "^1.0.2",
+        "rxjs": "^7.8.0",
         "sal.js": "^0.8.5",
         "sharp": "^0.31.3",
         "tiny-secp256k1": "^2.2.1"

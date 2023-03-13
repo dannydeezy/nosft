@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { connectWallet } from "@utils/crypto";
-import SessionStorage, { SessionsStorageKeys } from "@services/session-storage";
+import LocalStorage, { LocalStorageKeys } from "@services/local-storage";
 import { clearStorageCache } from "src/utils";
 
 function useConnectWallet() {
@@ -13,14 +13,14 @@ function useConnectWallet() {
 
     const onDisconnectHandler = async () => {
         setNostrPublicKey(undefined);
-        SessionStorage.remove(SessionsStorageKeys.NOSTR_PUBLIC_KEY);
+        LocalStorage.remove(LocalStorageKeys.NOSTR_PUBLIC_KEY);
         clearStorageCache();
     };
 
     useEffect(() => {
         async function getAddrInfo() {
             if (nostrPublicKey) {
-                SessionStorage.set(SessionsStorageKeys.NOSTR_PUBLIC_KEY, nostrPublicKey);
+                LocalStorage.set(LocalStorageKeys.NOSTR_PUBLIC_KEY, nostrPublicKey);
             }
         }
 
@@ -29,7 +29,7 @@ function useConnectWallet() {
 
     useEffect(() => {
         // TODO: We should ask the browser if we are connected to the wallet
-        const pubKey = SessionStorage.get(SessionsStorageKeys.NOSTR_PUBLIC_KEY);
+        const pubKey = LocalStorage.get(LocalStorageKeys.NOSTR_PUBLIC_KEY);
 
         if (pubKey) {
             setNostrPublicKey(pubKey);

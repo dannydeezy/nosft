@@ -7,7 +7,7 @@ const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 // We use blockstream.info for mainnet because it has a higher rate limit than mempool.space (same API).
 const baseMempoolUrl = TESTNET ? "https://mempool.space/signet" : "https://blockstream.info";
 export const getAddressUtxos = async (address) => {
-    console.log(`Getting address utxos`);
+    // console.log(`Getting address utxos`);
     let utxos;
     try {
         // Most addresses have few enough utxos that we can fetch them all at once with this call.

@@ -49,9 +49,11 @@ const OrdinalCard = ({ overlay, price, type, utxo, authors, confirmed, date, onS
     return (
         <div className={clsx("product-style-one", !overlay && "no-overlay")}>
             <div className="card-thumbnail">{renderImage()}</div>
-            <div className="inscription-details-area">
-                <div className="inscription-number">#{utxo.inscriptionNumber}</div>
-            </div>
+            {utxo.inscriptionNumber && (
+                <div className="inscription-details-area">
+                    <div className="inscription-number">#{utxo.inscriptionNumber}</div>
+                </div>
+            )}
             <div className="product-share-wrapper">
                 <div className="profile-share">
                     {authors?.map((client) => (

@@ -3,10 +3,10 @@
 /* eslint-disable no-extra-boolean-cast */
 /* eslint-disable no-await-in-loop */
 /* eslint-disable no-continue */
-import { useContext, useState, useEffect } from "react";
+import { useContext, useState, useEffect, useRef } from "react";
 import PropTypes from "prop-types";
 import clsx from "clsx";
-import SessionStorage, { SessionsStorageKeys } from "@services/session-storage";
+import LocalStorage, { LocalStorageKeys } from "@services/local-storage";
 import SectionTitle from "@components/section-title";
 import OrdinalCard from "@components/ordinal-card";
 import { toast } from "react-toastify";
@@ -16,6 +16,9 @@ import { shortenStr } from "@utils/crypto";
 import { getAddressUtxos } from "@utils/utxos";
 import { matchSorter } from "match-sorter";
 import { TiArrowSortedDown, TiArrowSortedUp } from "react-icons/ti";
+import { Subject } from "rxjs";
+import { scan, distinct } from "rxjs/operators";
+// import { scan } from "rxjs/operators";
 // Use this to fetch data from an API service
 const axios = require("axios");
 
@@ -33,28 +36,49 @@ const getOwnedInscriptions = async (nostrAddress) => {
     const utxos = await getAddressUtxos(nostrAddress);
     const sortedData = utxos.sort((a, b) => b.status.block_time - a.status.block_time);
     const inscriptions = sortedData.map((utxo) => ({ ...utxo, key: `${utxo.txid}:${utxo.vout}` }));
-    SessionStorage.set(SessionsStorageKeys.INSCRIPTIONS_OWNED, inscriptions);
+    // LocalStorage.set(LocalStorageKeys.INSCRIPTIONS_OWNED, inscriptions);
     return inscriptions;
 };
 
-const getInscriptionData = async (utxo) => {
+const getInscriptionId = async (utxo) => {
     const utxoKey = utxo.key;
-    const prevInscriptionId = SessionStorage.get(`${SessionsStorageKeys.INSCRIPTIONS_OWNED}:${utxoKey}`);
+    const INSCRIPTIONS_OWNED_KEY = `${LocalStorageKeys.INSCRIPTIONS_OWNED}:utxo:${utxoKey}`;
+    const prevInscriptionId = LocalStorage.get(INSCRIPTIONS_OWNED_KEY);
     if (prevInscriptionId) return prevInscriptionId;
+
     const res = await axios.get(`https://ordinals.com/output/${utxoKey}`);
     const inscriptionId = res.data.match(/<a href=\/inscription\/(.*?)>/)?.[1];
+    LocalStorage.set(INSCRIPTIONS_OWNED_KEY, inscriptionId);
 
+    return inscriptionId;
+};
+
+const getInscriptionNumberFromOrdinals = async (inscriptionId) => {
     const html = await fetch(`https://ordinals.com/inscription/${inscriptionId}`).then((response) => response.text());
-    const inscriptionNumber = html.match(/<h1>Inscription (\d*)<\/h1>/)[1];
+    const inscriptionNumber = html.match(/<h1>Inscription (\d*)<\/h1>/)?.[1];
+    if (inscriptionNumber) {
+        LocalStorage.set(`${LocalStorageKeys.INSCRIPTION_NUMBER}:${inscriptionId}`, inscriptionNumber);
+        return inscriptionNumber;
+    }
 
-    SessionStorage.set(`${SessionsStorageKeys.INSCRIPTIONS_OWNED}:utxo:${utxoKey}`, inscriptionId);
-    return {
+    return undefined;
+};
+
+const getInscriptionData = async (utxo) => {
+    const inscriptionId = await getInscriptionId(utxo);
+    const inscriptionNumber =
+        LocalStorage.get(`${LocalStorageKeys.INSCRIPTION_NUMBER}:${inscriptionId}`) ||
+        (await getInscriptionNumberFromOrdinals(inscriptionId));
+
+    const result = {
         ...utxo,
         inscriptionId,
         inscriptionNumber,
     };
+    return result;
 };
 
+const FETCH_SIZE = 1;
 const OrdinalsArea = ({ className, space }) => {
     const { nostrAddress } = useContext(WalletContext);
     const [utxosReady, setUtxosReady] = useState(false);
@@ -66,24 +90,40 @@ const OrdinalsArea = ({ className, space }) => {
     const [activeSort, setActiveSort] = useState("date");
     const [sortAsc, setSortAsc] = useState(false);
 
+    const addOpenOrder$ = useRef(new Subject());
+    const addSubscriptionRef = useRef(null);
+
     const handleRefreshHack = () => {
         setRefreshHack(!refreshHack);
+        window.location.reload(); // TODO: Fix, we should avoid duplicate data on refresh
+    };
+
+    const addNewOpenOrder = (order) => {
+        addOpenOrder$.current.next(order);
     };
 
     useEffect(() => {
         const fetchByUtxos = async () => {
             setUtxosReady(false);
             const ownedInscriptions = await getOwnedInscriptions(nostrAddress);
-            setOwnedUtxos(ownedInscriptions);
-            setFilteredOwnedUtxos(ownedInscriptions);
-            const ownedInscriptionResults = await Promise.allSettled(
-                ownedInscriptions.map((utxo) => getInscriptionData(utxo))
-            );
-            setOwnedUtxos(ownedInscriptionResults.map((utxo) => utxo.value));
-            setUtxosReady(true);
+
+            for (let i = 0; i < ownedInscriptions.length; i++) {
+                const inscription = await getInscriptionData(ownedInscriptions[i]);
+                addNewOpenOrder(inscription);
+
+                setUtxosReady(true);
+                // eslint-disable-next-line no-promise-executor-return
+                await new Promise((resolve) => setTimeout(resolve, 100));
+            }
         };
+
+        addSubscriptionRef.current = addOpenOrder$.current.subscribe((order) => {
+            setOwnedUtxos((prev) => [...prev, order]);
+            setFilteredOwnedUtxos((prev) => [...prev, order]);
+        });
+
         fetchByUtxos();
-    }, [refreshHack, nostrAddress]);
+    }, [nostrAddress]);
 
     return (
         <div id="your-collection" className={clsx("rn-product-area", space === 1 && "rn-section-gapTop", className)}>

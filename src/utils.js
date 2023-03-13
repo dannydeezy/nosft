@@ -1,7 +1,7 @@
 import * as bitcoin from "bitcoinjs-lib";
 import * as ecc from "tiny-secp256k1";
 import { TESTNET, ASSUMED_TX_BYTES } from "@lib/constants";
-import SessionStorage, { SessionsStorageKeys } from "@services/session-storage";
+import LocalStorage, { LocalStorageKeys } from "@services/local-storage";
 
 bitcoin.initEccLib(ecc);
 
@@ -41,8 +41,8 @@ export const connectWallet = async () => {
 };
 
 export const clearStorageCache = () => {
-    const inscriptions = SessionStorage.get(SessionsStorageKeys.INSCRIPTIONS_OWNED);
+    const inscriptions = LocalStorage.get(LocalStorageKeys.INSCRIPTIONS_OWNED);
     if (!inscriptions) return;
-    SessionStorage.remove(SessionsStorageKeys.INSCRIPTIONS_OWNED);
-    inscriptions.forEach(({ key }) => SessionStorage.remove(`${SessionsStorageKeys.INSCRIPTIONS_OWNED}:utxo:${key}`));
+    LocalStorage.remove(LocalStorageKeys.INSCRIPTIONS_OWNED);
+    inscriptions.forEach(({ key }) => LocalStorage.remove(`${LocalStorageKeys.INSCRIPTIONS_OWNED}:utxo:${key}`));
 };

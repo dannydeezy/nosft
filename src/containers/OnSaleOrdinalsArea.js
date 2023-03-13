@@ -8,7 +8,7 @@ import SectionTitle from "@components/section-title";
 import OrdinalCard from "@components/ordinal-card";
 import { deepClone } from "@utils/methods";
 import OpenOrdex from "@utils/openOrdexV3";
-import SessionStorage, { SessionsStorageKeys } from "@services/session-storage";
+import LocalStorage, { LocalStorageKeys } from "@services/local-storage";
 import WalletContext from "@context/wallet-context";
 // Use this to fetch data from an API service
 const axios = require("axios");
@@ -37,7 +37,7 @@ const OnSaleOrdinalsArea = ({ className, space, onConnectHandler, onSale }) => {
         const load = async () => {
             setIsLoadingOpenOrders(true);
             // load from cache before updating
-            const sessionOrders = SessionStorage.get(SessionsStorageKeys.INSCRIPTIONS_ON_SALE);
+            const sessionOrders = LocalStorage.get(LocalStorageKeys.INSCRIPTIONS_ON_SALE);
             if (sessionOrders) {
                 setOpenOrders(sessionOrders);
             }
@@ -63,7 +63,7 @@ const OnSaleOrdinalsArea = ({ className, space, onConnectHandler, onSale }) => {
                 forSaleInscriptions.push(i);
             }
 
-            SessionStorage.set(SessionsStorageKeys.INSCRIPTIONS_ON_SALE, forSaleInscriptions);
+            LocalStorage.set(LocalStorageKeys.INSCRIPTIONS_ON_SALE, forSaleInscriptions);
 
             setOpenOrders(forSaleInscriptions);
 

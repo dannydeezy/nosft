@@ -8,7 +8,7 @@ import InputGroup from "react-bootstrap/InputGroup";
 import Form from "react-bootstrap/Form";
 import { TESTNET, DEFAULT_FEE_RATE, ORDINALS_EXPLORER_URL } from "@lib/constants";
 import { shortenStr, outputValue, getAddressInfo } from "@utils/crypto";
-import SessionStorage, { SessionsStorageKeys } from "@services/session-storage";
+import LocalStorage, { LocalStorageKeys } from "@services/local-storage";
 import { serializeTaprootSignature } from "bitcoinjs-lib/src/psbt/bip371";
 import * as bitcoin from "bitcoinjs-lib";
 import * as ecc from "tiny-secp256k1";
@@ -29,7 +29,7 @@ const SendModal = ({ show, handleModal, utxo, onSale }) => {
     const [isSending, setIsSending] = useState(false);
 
     useEffect(() => {
-        const pubKey = SessionStorage.get(SessionsStorageKeys.NOSTR_PUBLIC_KEY);
+        const pubKey = LocalStorage.get(LocalStorageKeys.NOSTR_PUBLIC_KEY);
         if (pubKey) {
             setNostrPublicKey(pubKey);
         }
