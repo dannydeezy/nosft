@@ -38,20 +38,22 @@ const getOwnedInscriptions = async (nostrAddress) => {
 };
 
 const getInscriptionData = async (utxo) => {
+    const returnedUtxo = utxo;
     const utxoKey = utxo.key;
     const prevInscriptionId = SessionStorage.get(`${SessionsStorageKeys.INSCRIPTIONS_OWNED}:${utxoKey}`);
     if (prevInscriptionId) return prevInscriptionId;
     const res = await axios.get(`https://ordinals.com/output/${utxoKey}`);
     const inscriptionId = res.data.match(/<a href=\/inscription\/(.*?)>/)?.[1];
+    returnedUtxo.inscriptionId = inscriptionId;
 
     const html = await fetch(`https://ordinals.com/inscription/${inscriptionId}`).then((response) => response.text());
     const inscriptionNumber = html.match(/<h1>Inscription (\d*)<\/h1>/)[1];
+    returnedUtxo.inscriptionNumber = inscriptionNumber;
 
     SessionStorage.set(`${SessionsStorageKeys.INSCRIPTIONS_OWNED}:utxo:${utxoKey}`, inscriptionId);
+
     return {
-        ...utxo,
-        inscriptionId,
-        inscriptionNumber,
+        ...returnedUtxo,
     };
 };
 
