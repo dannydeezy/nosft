@@ -116,7 +116,7 @@ const OrdinalsArea = ({ className, space }) => {
                             </button>
                         </span>
                     </div>
-                    <div className="col-lg-4 col-md-4 col-sm-4 col-8">
+                    <div className="col-lg-3 col-md-4 col-sm-4 col-6">
                         <input
                             placeholder="Search"
                             value={searchQuery}
@@ -125,6 +125,7 @@ const OrdinalsArea = ({ className, space }) => {
                                 const filteredUtxos = matchSorter(ownedUtxos, e.target.value, {
                                     keys: [
                                         "inscriptionId",
+                                        "inscriptionNumber",
                                         "key",
                                         "txid",
                                         "vout",
@@ -204,6 +205,43 @@ const OrdinalsArea = ({ className, space }) => {
                         >
                             <div>Value</div>
                             {activeSort === "value" && (
+                                <div>{sortAsc ? <TiArrowSortedUp /> : <TiArrowSortedDown />}</div>
+                            )}
+                        </button>
+                    </div>
+                    <div className="col-lg-1 col-md-1 col-sm-1 col-2">
+                        <button
+                            type="button"
+                            className={clsx(
+                                "sort-button d-flex flex-row justify-content-center",
+                                activeSort === "inscriptionNumber" && "active"
+                            )}
+                            onClick={() => {
+                                if (activeSort === "inscriptionNumber") {
+                                    setFilteredOwnedUtxos(
+                                        filteredOwnedUtxos.sort((a, b) => {
+                                            const res = !sortAsc
+                                                ? a.inscriptionNumber - b.inscriptionNumber
+                                                : b.inscriptionNumber - a.inscriptionNumber;
+                                            return res;
+                                        })
+                                    );
+                                    setSortAsc(!sortAsc);
+                                    return;
+                                }
+                                setFilteredOwnedUtxos(
+                                    filteredOwnedUtxos.sort((a, b) => {
+                                        const res = sortAsc
+                                            ? a.inscriptionNumber - b.inscriptionNumber
+                                            : b.inscriptionNumber - a.inscriptionNumber;
+                                        return res;
+                                    })
+                                );
+                                setActiveSort("inscriptionNumber");
+                            }}
+                        >
+                            <div>#</div>
+                            {activeSort === "inscriptionNumber" && (
                                 <div>{sortAsc ? <TiArrowSortedUp /> : <TiArrowSortedDown />}</div>
                             )}
                         </button>
