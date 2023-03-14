@@ -38,20 +38,22 @@ const getOwnedInscriptions = async (nostrAddress) => {
 };
 
 const getInscriptionData = async (utxo) => {
+    const returnedUtxo = utxo;
     const utxoKey = utxo.key;
     const prevInscriptionId = SessionStorage.get(`${SessionsStorageKeys.INSCRIPTIONS_OWNED}:${utxoKey}`);
     if (prevInscriptionId) return prevInscriptionId;
     const res = await axios.get(`https://ordinals.com/output/${utxoKey}`);
     const inscriptionId = res.data.match(/<a href=\/inscription\/(.*?)>/)?.[1];
+    returnedUtxo.inscriptionId = inscriptionId;
 
     const html = await fetch(`https://ordinals.com/inscription/${inscriptionId}`).then((response) => response.text());
     const inscriptionNumber = html.match(/<h1>Inscription (\d*)<\/h1>/)[1];
+    returnedUtxo.inscriptionNumber = inscriptionNumber;
 
     SessionStorage.set(`${SessionsStorageKeys.INSCRIPTIONS_OWNED}:utxo:${utxoKey}`, inscriptionId);
+
     return {
-        ...utxo,
-        inscriptionId,
-        inscriptionNumber,
+        ...returnedUtxo,
     };
 };
 
@@ -114,7 +116,7 @@ const OrdinalsArea = ({ className, space }) => {
                             </button>
                         </span>
                     </div>
-                    <div className="col-lg-4 col-md-4 col-sm-4 col-8">
+                    <div className="col-lg-3 col-md-4 col-sm-4 col-6">
                         <input
                             placeholder="Search"
                             value={searchQuery}
@@ -123,6 +125,7 @@ const OrdinalsArea = ({ className, space }) => {
                                 const filteredUtxos = matchSorter(ownedUtxos, e.target.value, {
                                     keys: [
                                         "inscriptionId",
+                                        "inscriptionNumber",
                                         "key",
                                         "txid",
                                         "vout",
@@ -202,6 +205,43 @@ const OrdinalsArea = ({ className, space }) => {
                         >
                             <div>Value</div>
                             {activeSort === "value" && (
+                                <div>{sortAsc ? <TiArrowSortedUp /> : <TiArrowSortedDown />}</div>
+                            )}
+                        </button>
+                    </div>
+                    <div className="col-lg-1 col-md-1 col-sm-1 col-2">
+                        <button
+                            type="button"
+                            className={clsx(
+                                "sort-button d-flex flex-row justify-content-center",
+                                activeSort === "inscriptionNumber" && "active"
+                            )}
+                            onClick={() => {
+                                if (activeSort === "inscriptionNumber") {
+                                    setFilteredOwnedUtxos(
+                                        filteredOwnedUtxos.sort((a, b) => {
+                                            const res = !sortAsc
+                                                ? a.inscriptionNumber - b.inscriptionNumber
+                                                : b.inscriptionNumber - a.inscriptionNumber;
+                                            return res;
+                                        })
+                                    );
+                                    setSortAsc(!sortAsc);
+                                    return;
+                                }
+                                setFilteredOwnedUtxos(
+                                    filteredOwnedUtxos.sort((a, b) => {
+                                        const res = sortAsc
+                                            ? a.inscriptionNumber - b.inscriptionNumber
+                                            : b.inscriptionNumber - a.inscriptionNumber;
+                                        return res;
+                                    })
+                                );
+                                setActiveSort("inscriptionNumber");
+                            }}
+                        >
+                            <div>#</div>
+                            {activeSort === "inscriptionNumber" && (
                                 <div>{sortAsc ? <TiArrowSortedUp /> : <TiArrowSortedDown />}</div>
                             )}
                         </button>
